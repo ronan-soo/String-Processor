@@ -1,0 +1,5 @@
+{
+  "name": "TextFlow Pro",
+  "description": "A modular, drag-and-drop text processing pipeline that allows complex transformations, JSON parsing, and field selection with real-time feedback at every stage.",
+  "requestFramePermissions": []
+}
