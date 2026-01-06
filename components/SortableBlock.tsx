@@ -10,8 +10,6 @@ import {
   Brackets, 
   Scissors, 
   ArrowRightLeft, 
-  Sparkles,
-  RefreshCw,
   Hash,
   AlertCircle
 } from 'lucide-react';
@@ -21,16 +19,12 @@ interface SortableBlockProps {
   block: BlockInstance;
   onRemove: () => void;
   onUpdateConfig: (config: any) => void;
-  onTriggerAI?: () => void;
-  isProcessingAI?: boolean;
 }
 
 const SortableBlock: React.FC<SortableBlockProps> = ({ 
   block, 
   onRemove, 
-  onUpdateConfig, 
-  onTriggerAI,
-  isProcessingAI 
+  onUpdateConfig
 }) => {
   const {
     attributes,
@@ -56,7 +50,6 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       case BlockType.SELECT_FIELD: return <Hash className="w-4 h-4 text-indigo-500" />;
       case BlockType.SPLIT: return <Scissors className="w-4 h-4 text-amber-500" />;
       case BlockType.TRANSFORM_CASE: return <ArrowRightLeft className="w-4 h-4 text-slate-500" />;
-      case BlockType.AI_PROCESS: return <Sparkles className="w-4 h-4 text-purple-500" />;
       default: return <Settings className="w-4 h-4" />;
     }
   };
@@ -142,28 +135,6 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
                 <option value="upper">UPPERCASE</option>
                 <option value="lower">lowercase</option>
               </select>
-            </div>
-          )}
-
-          {block.type === BlockType.AI_PROCESS && (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Instruction</label>
-                <textarea 
-                  value={block.config.prompt} 
-                  onChange={(e) => onUpdateConfig({ ...block.config, prompt: e.target.value })}
-                  placeholder="e.g. Summarize the text in 3 bullet points"
-                  className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all resize-none h-24"
-                />
-              </div>
-              <button 
-                onClick={onTriggerAI}
-                disabled={isProcessingAI}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-lg text-sm font-semibold transition-all shadow-md shadow-purple-100"
-              >
-                {isProcessingAI ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {isProcessingAI ? 'AI Thinking...' : 'Generate AI Result'}
-              </button>
             </div>
           )}
           

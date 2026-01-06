@@ -6,8 +6,7 @@ export enum BlockType {
   PARSE_JSON = 'PARSE_JSON',
   SELECT_FIELD = 'SELECT_FIELD',
   SPLIT = 'SPLIT',
-  TRANSFORM_CASE = 'TRANSFORM_CASE',
-  AI_PROCESS = 'AI_PROCESS'
+  TRANSFORM_CASE = 'TRANSFORM_CASE'
 }
 
 export type TransformResult = {

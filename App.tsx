@@ -23,8 +23,6 @@ import {
   Brackets, 
   Scissors, 
   ArrowRightLeft, 
-  Sparkles,
-  RefreshCw,
   Hash,
   Save,
   FolderOpen,
@@ -32,12 +30,12 @@ import {
   Download,
   CheckCircle2,
   ChevronRight,
-  FileText
+  FileText,
+  AlertTriangle
 } from 'lucide-react';
 import { BlockType, BlockInstance, TransformResult, SavedOperation } from './types';
-import { transform, getResultType } from './utils/transformers';
+import { transform } from './utils/transformers';
 import SortableBlock from './components/SortableBlock';
-import { processWithAI } from './services/geminiService';
 
 const LOCAL_STORAGE_KEY = 'textflow_saved_ops';
 
@@ -47,12 +45,25 @@ const App: React.FC = () => {
   const [savedOps, setSavedOps] = useState<SavedOperation[]>([]);
   const [activeOpId, setActiveOpId] = useState<string | null>(null);
   const [showSavedToast, setShowSavedToast] = useState(false);
-  const [isProcessingAI, setIsProcessingAI] = useState<string | null>(null);
   
-  // UI States for Saving
+  // UI States for Modals
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [tempName, setTempName] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDestructive?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Load saved ops from localStorage on mount
   useEffect(() => {
@@ -80,32 +91,36 @@ const App: React.FC = () => {
     })
   );
 
-  const runPipeline = useCallback(async (startInput: string, currentBlocks: BlockInstance[]) => {
+  const runPipeline = useCallback((startInput: string, currentBlocks: BlockInstance[]) => {
     let currentInput: any = startInput;
-    const newBlocks = [...currentBlocks];
+    let changed = false;
+    
+    const newBlocks = currentBlocks.map(b => {
+      const block = { ...b };
+      const newOutput = transform(block.type, currentInput, block.config);
 
-    for (let i = 0; i < newBlocks.length; i++) {
-      const block = newBlocks[i];
-      
-      if (block.type === BlockType.AI_PROCESS) {
-        if (!block.output.data && !block.output.error) {
-          block.output = { data: currentInput, type: getResultType(currentInput) };
-        }
-      } else {
-        block.output = transform(block.type, currentInput, block.config);
+      if (JSON.stringify(newOutput) !== JSON.stringify(block.output)) {
+        block.output = newOutput;
+        changed = true;
       }
-      
+
       currentInput = block.output.data;
+      return block;
+    });
+
+    if (changed) {
+      setBlocks(newBlocks);
     }
-    setBlocks(newBlocks);
   }, []);
+
+  const blockDefinitionsJson = JSON.stringify(blocks.map(b => ({ id: b.id, type: b.type, config: b.config })));
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       runPipeline(initialInput, blocks);
-    }, 300);
+    }, 150);
     return () => clearTimeout(timeout);
-  }, [initialInput, runPipeline]);
+  }, [initialInput, blockDefinitionsJson, runPipeline]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -113,9 +128,7 @@ const App: React.FC = () => {
       setBlocks((items) => {
         const oldIndex = items.findIndex((i) => i.id === active.id);
         const newIndex = items.findIndex((i) => i.id === over.id);
-        const nextItems = arrayMove(items, oldIndex, newIndex);
-        runPipeline(initialInput, nextItems);
-        return nextItems;
+        return arrayMove(items, oldIndex, newIndex);
       });
     }
   };
@@ -127,7 +140,6 @@ const App: React.FC = () => {
     if (type === BlockType.SPLIT) defaultConfig.separator = '';
     if (type === BlockType.ESCAPE || type === BlockType.UNESCAPE) defaultConfig.mode = 'html';
     if (type === BlockType.TRANSFORM_CASE) defaultConfig.mode = 'upper';
-    if (type === BlockType.AI_PROCESS) defaultConfig.prompt = 'Summarize this';
 
     const newBlock: BlockInstance = {
       id: newId,
@@ -136,46 +148,15 @@ const App: React.FC = () => {
       output: { data: null, type: 'null' }
     };
 
-    const nextBlocks = [...blocks, newBlock];
-    setBlocks(nextBlocks);
-    runPipeline(initialInput, nextBlocks);
+    setBlocks(prev => [...prev, newBlock]);
   };
 
   const removeBlock = (id: string) => {
-    const nextBlocks = blocks.filter(b => b.id !== id);
-    setBlocks(nextBlocks);
-    runPipeline(initialInput, nextBlocks);
+    setBlocks(prev => prev.filter(b => b.id !== id));
   };
 
   const updateBlockConfig = (id: string, config: any) => {
-    const nextBlocks = blocks.map(b => b.id === id ? { ...b, config } : b);
-    setBlocks(nextBlocks);
-    runPipeline(initialInput, nextBlocks);
-  };
-
-  const triggerAI = async (id: string) => {
-    const block = blocks.find(b => b.id === id);
-    if (!block || block.type !== BlockType.AI_PROCESS) return;
-
-    const blockIndex = blocks.findIndex(b => b.id === id);
-    const inputForAI = blockIndex === 0 ? initialInput : blocks[blockIndex - 1].output.data;
-
-    setIsProcessingAI(id);
-    try {
-      const result = await processWithAI(inputForAI, block.config.prompt);
-      const nextBlocks: BlockInstance[] = blocks.map(b => 
-        b.id === id ? { ...b, output: { data: result, type: 'string' as const } } : b
-      );
-      setBlocks(nextBlocks);
-      runPipeline(initialInput, nextBlocks);
-    } catch (err: any) {
-      const nextBlocks: BlockInstance[] = blocks.map(b => 
-        b.id === id ? { ...b, output: { data: null, type: 'null' as const, error: err.message } } : b
-      );
-      setBlocks(nextBlocks);
-    } finally {
-      setIsProcessingAI(null);
-    }
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, config } : b));
   };
 
   const openSaveModal = (forceNew: boolean = false) => {
@@ -183,7 +164,6 @@ const App: React.FC = () => {
       setTempName(`Flow ${new Date().toLocaleTimeString()}`);
       setIsSaveModalOpen(true);
     } else {
-      // Direct update for existing active op
       const current = savedOps.find(o => o.id === activeOpId);
       if (current) performSave(current.name, activeOpId);
     }
@@ -196,12 +176,12 @@ const App: React.FC = () => {
       id: finalId,
       name,
       initialInput,
-      blocks: blocks.map(({ id, type, config }) => ({ 
+      blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config }) => ({ 
         id, 
         type, 
         config, 
         output: { data: null, type: 'null' as const } 
-      })),
+      })))),
       createdAt: Date.now()
     };
 
@@ -221,21 +201,58 @@ const App: React.FC = () => {
     setTimeout(() => setShowSavedToast(false), 2000);
   };
 
-  const loadOp = (op: SavedOperation) => {
-    if (blocks.length > 0 && !window.confirm("Loading will overwrite your current pipeline. Continue?")) return;
+  const executeLoadOp = (op: SavedOperation) => {
+    const clonedBlocks = JSON.parse(JSON.stringify(op.blocks));
     setInitialInput(op.initialInput);
-    setBlocks(op.blocks);
+    setBlocks(clonedBlocks);
     setActiveOpId(op.id);
-    runPipeline(op.initialInput, op.blocks);
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
   };
 
-  const deleteOp = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!window.confirm("Delete this saved operation?")) return;
+  const loadOp = (op: SavedOperation) => {
+    if (blocks.length > 0) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Overwrite Pipeline?',
+        message: 'Loading this operation will replace all blocks in your current workspace. This cannot be undone.',
+        onConfirm: () => executeLoadOp(op),
+      });
+    } else {
+      executeLoadOp(op);
+    }
+  };
+
+  const executeDeleteOp = (id: string) => {
     const updated = savedOps.filter(op => op.id !== id);
     setSavedOps(updated);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
     if (activeOpId === id) setActiveOpId(null);
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const deleteOp = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Operation?',
+      message: 'Are you sure you want to permanently remove this saved operation from your library?',
+      onConfirm: () => executeDeleteOp(id),
+      isDestructive: true
+    });
+  };
+
+  const clearWorkspace = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Workspace?',
+      message: 'This will remove all blocks from your current pipeline. Saved operations will not be affected.',
+      onConfirm: () => {
+        setBlocks([]);
+        setActiveOpId(null);
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      },
+      isDestructive: true
+    });
   };
 
   const exportOp = () => {
@@ -262,6 +279,39 @@ const App: React.FC = () => {
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           <span className="text-sm font-semibold tracking-wide">Operation Saved Successfully!</span>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-all">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8 text-center">
+              <div className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${confirmModal.isDestructive ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-500'}`}>
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">{confirmModal.title}</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="flex border-t border-slate-100 p-4 gap-3 bg-slate-50/50">
+              <button 
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 px-4 py-3 text-sm font-bold text-slate-500 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmModal.onConfirm}
+                className={`flex-1 px-4 py-3 text-sm font-bold text-white rounded-xl transition-all shadow-lg ${
+                  confirmModal.isDestructive 
+                    ? 'bg-red-500 hover:bg-red-600 shadow-red-100' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -364,7 +414,7 @@ const App: React.FC = () => {
           </button>
           
           <button 
-            onClick={() => { if(window.confirm("Clear all blocks?")) { setBlocks([]); setActiveOpId(null); } }}
+            onClick={clearWorkspace}
             className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
           >
             <Trash2 className="w-5 h-5" />
@@ -384,7 +434,6 @@ const App: React.FC = () => {
                 <SidebarButton onClick={() => addBlock(BlockType.SELECT_FIELD)} icon={<Hash className="w-4 h-4" />} label="Select Field" />
                 <SidebarButton onClick={() => addBlock(BlockType.SPLIT)} icon={<Scissors className="w-4 h-4" />} label="Split String" />
                 <SidebarButton onClick={() => addBlock(BlockType.TRANSFORM_CASE)} icon={<ArrowRightLeft className="w-4 h-4" />} label="Case Switch" />
-                <SidebarButton onClick={() => addBlock(BlockType.AI_PROCESS)} icon={<Sparkles className="w-4 h-4" />} label="AI Transform" isPrimary />
               </div>
             </div>
 
@@ -479,8 +528,6 @@ const App: React.FC = () => {
                       block={block} 
                       onRemove={() => removeBlock(block.id)}
                       onUpdateConfig={(config) => updateBlockConfig(block.id, config)}
-                      onTriggerAI={() => triggerAI(block.id)}
-                      isProcessingAI={isProcessingAI === block.id}
                     />
                     {index < blocks.length - 1 && (
                       <div className="h-10 w-1 bg-indigo-100 rounded-full" />
@@ -501,7 +548,7 @@ const App: React.FC = () => {
                   </span>
                   <button 
                     onClick={() => {
-                      const final = blocks[blocks.length - 1].output.data;
+                      const final = blocks[blocks.length - 1]?.output?.data;
                       navigator.clipboard.writeText(typeof final === 'string' ? final : JSON.stringify(final, null, 2));
                     }}
                     className="text-[10px] font-bold text-white/30 hover:text-white transition-colors uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-lg"
@@ -510,7 +557,7 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <pre className="p-8 overflow-auto max-h-[600px] code-font text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                  {JSON.stringify(blocks[blocks.length - 1].output.data, null, 2)}
+                  {JSON.stringify(blocks[blocks.length - 1]?.output?.data, null, 2)}
                 </pre>
               </section>
             </>
