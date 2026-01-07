@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [savedOps, setSavedOps] = useState<SavedOperation[]>([]);
   const [activeOpId, setActiveOpId] = useState<string | null>(null);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // UI States for Modals
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
@@ -298,9 +299,11 @@ const App: React.FC = () => {
           activeOpId={activeOpId}
           onLoadOp={loadOp}
           onDeleteOp={deleteOp}
+          isCollapsed={isSidebarCollapsed}
+          onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
-        <main className="flex-1 overflow-y-auto p-8 flex flex-col items-center gap-8 bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto p-8 flex flex-col items-center gap-8 bg-slate-50/50 transition-all duration-300">
           <section className="w-full max-w-4xl bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all hover:shadow-2xl">
             <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
