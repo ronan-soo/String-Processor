@@ -13,7 +13,7 @@ import {
   PanelLeftOpen
 } from 'lucide-react';
 import { BlockType, SavedOperation } from '../types';
-import SidebarButton from './SidebarButton';
+import SidebarButton from '../components/SidebarButton';
 
 interface SidebarProps {
   onAddBlock: (type: BlockType) => void;

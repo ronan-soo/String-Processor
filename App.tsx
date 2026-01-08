@@ -22,8 +22,8 @@ import {
 import { BlockType, BlockInstance, SavedOperation } from './types';
 import { transform } from './utils/transformers';
 import SortableBlock from './components/SortableBlock';
-import Header from './components/Header';
-import Sidebar from './components/Sidebar';
+import Header from './layouts/Header';
+import Sidebar from './layouts/Sidebar';
 import Terminal from './components/Terminal';
 import ConfirmationModal from './components/ConfirmationModal';
 import SaveModal from './components/SaveModal';
