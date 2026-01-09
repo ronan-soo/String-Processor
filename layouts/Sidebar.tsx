@@ -10,7 +10,12 @@ import {
   X, 
   ChevronRight,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  ArrowUp,
+  ArrowDown,
+  FileJson,
+  Minimize2,
+  FileCode
 } from 'lucide-react';
 import { BlockType, SavedOperation } from '../types';
 import SidebarButton from '../components/SidebarButton';
@@ -54,9 +59,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.ESCAPE)} icon={<Code className="w-4 h-4" />} label="Escape" />
             <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.UNESCAPE)} icon={<ArrowRightLeft className="w-4 h-4" />} label="Unescape" />
             <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.PARSE_JSON)} icon={<Brackets className="w-4 h-4" />} label="Parse JSON" />
+            <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.PARSE_XML)} icon={<FileCode className="w-4 h-4" />} label="Parse XML" />
+            <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.JSON_STRINGIFY)} icon={<FileJson className="w-4 h-4" />} label="JSON Stringify" />
+            <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.MINIFY)} icon={<Minimize2 className="w-4 h-4" />} label="Minify" />
             <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.SELECT_FIELD)} icon={<Hash className="w-4 h-4" />} label="Select Field" />
             <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.SPLIT)} icon={<Scissors className="w-4 h-4" />} label="Split String" />
-            <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.TRANSFORM_CASE)} icon={<ArrowRightLeft className="w-4 h-4" />} label="Case Switch" />
+            <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.TRANSFORM_UPPERCASE)} icon={<ArrowUp className="w-4 h-4" />} label="Uppercase" />
+            <SidebarButton isCollapsed={isCollapsed} onClick={() => onAddBlock(BlockType.TRANSFORM_LOWERCASE)} icon={<ArrowDown className="w-4 h-4" />} label="Lowercase" />
           </div>
         </div>
 

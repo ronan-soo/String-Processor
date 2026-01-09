@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   DndContext, 
   closestCenter, 
@@ -19,7 +20,7 @@ import {
   Hash,
   CheckCircle2
 } from 'lucide-react';
-import { BlockType, BlockInstance, SavedOperation } from './types';
+import { BlockType, BlockInstance, SavedOperation, HistoryItem } from './types';
 import { transform } from './utils/transformers';
 import SortableBlock from './components/SortableBlock';
 import Header from './layouts/Header';
@@ -38,6 +39,11 @@ const App: React.FC = () => {
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
+  // History State
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoingRedoing = useRef(false);
+
   // UI States for Modals
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [tempName, setTempName] = useState('');
@@ -55,6 +61,79 @@ const App: React.FC = () => {
     message: '',
     onConfirm: () => {},
   });
+
+  const recordHistory = useCallback((input: string, currentBlocks: BlockInstance[]) => {
+    if (isUndoingRedoing.current) {
+      isUndoingRedoing.current = false;
+      return;
+    }
+
+    const snap: HistoryItem = { 
+      initialInput: input, 
+      blocks: JSON.parse(JSON.stringify(currentBlocks.map(({ id, type, config }) => ({ id, type, config })))) 
+    };
+    
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      // Only record if it's actually different from the last state
+      if (newHistory.length > 0) {
+        const last = newHistory[newHistory.length - 1];
+        if (last.initialInput === input && JSON.stringify(last.blocks) === JSON.stringify(snap.blocks)) {
+          return prev;
+        }
+      }
+      return [...newHistory, snap];
+    });
+    setHistoryIndex(prev => prev + 1);
+  }, [historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      const item = history[prevIndex];
+      isUndoingRedoing.current = true;
+      setInitialInput(item.initialInput);
+      setBlocks(item.blocks.map(b => ({ ...b, output: { data: null, type: 'null' } })));
+      setHistoryIndex(prevIndex);
+    }
+  }, [history, historyIndex]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const nextIndex = historyIndex + 1;
+      const item = history[nextIndex];
+      isUndoingRedoing.current = true;
+      setInitialInput(item.initialInput);
+      setBlocks(item.blocks.map(b => ({ ...b, output: { data: null, type: 'null' } })));
+      setHistoryIndex(nextIndex);
+    }
+  }, [history, historyIndex]);
+
+  // Initial history setup
+  useEffect(() => {
+    if (history.length === 0) {
+      recordHistory(initialInput, blocks);
+    }
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        e.preventDefault();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+        redo();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   // Load saved ops from localStorage on mount
   useEffect(() => {
@@ -106,13 +185,27 @@ const App: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [initialInput, blockDefinitionsJson, runPipeline]);
 
+  // Handle recording history for initialInput with a separate debounce
+  const inputTimeoutRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (inputTimeoutRef.current) window.clearTimeout(inputTimeoutRef.current);
+    inputTimeoutRef.current = window.setTimeout(() => {
+      recordHistory(initialInput, blocks);
+    }, 500);
+    return () => {
+      if (inputTimeoutRef.current) window.clearTimeout(inputTimeoutRef.current);
+    };
+  }, [initialInput]);
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       setBlocks((items) => {
         const oldIndex = items.findIndex((i) => i.id === active.id);
         const newIndex = items.findIndex((i) => i.id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
+        const result = arrayMove(items, oldIndex, newIndex);
+        recordHistory(initialInput, result);
+        return result;
       });
     }
   };
@@ -123,7 +216,6 @@ const App: React.FC = () => {
     if (type === BlockType.SELECT_FIELD) defaultConfig.path = '';
     if (type === BlockType.SPLIT) defaultConfig.separator = '';
     if (type === BlockType.ESCAPE || type === BlockType.UNESCAPE) defaultConfig.mode = 'html';
-    if (type === BlockType.TRANSFORM_CASE) defaultConfig.mode = 'upper';
 
     const newBlock: BlockInstance = {
       id: newId,
@@ -132,15 +224,22 @@ const App: React.FC = () => {
       output: { data: null, type: 'null' }
     };
 
-    setBlocks(prev => [...prev, newBlock]);
+    const newBlocks = [...blocks, newBlock];
+    setBlocks(newBlocks);
+    recordHistory(initialInput, newBlocks);
   };
 
   const removeBlock = (id: string) => {
-    setBlocks(prev => prev.filter(b => b.id !== id));
+    const newBlocks = blocks.filter(b => b.id !== id);
+    setBlocks(newBlocks);
+    recordHistory(initialInput, newBlocks);
   };
 
   const updateBlockConfig = (id: string, config: any) => {
-    setBlocks(prev => prev.map(b => b.id === id ? { ...b, config } : b));
+    const newBlocks = blocks.map(b => b.id === id ? { ...b, config } : b);
+    setBlocks(newBlocks);
+    // Debounce config recording slightly or record immediately? Immediate for toggles/dropdowns is usually better.
+    recordHistory(initialInput, newBlocks);
   };
 
   const openSaveModal = (forceNew: boolean = false) => {
@@ -190,6 +289,7 @@ const App: React.FC = () => {
     setInitialInput(op.initialInput);
     setBlocks(clonedBlocks);
     setActiveOpId(op.id);
+    recordHistory(op.initialInput, clonedBlocks);
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
   };
 
@@ -231,8 +331,10 @@ const App: React.FC = () => {
       title: 'Clear Workspace?',
       message: 'This will remove all blocks from your current pipeline. Saved operations will not be affected.',
       onConfirm: () => {
-        setBlocks([]);
+        const emptyBlocks: BlockInstance[] = [];
+        setBlocks(emptyBlocks);
         setActiveOpId(null);
+        recordHistory(initialInput, emptyBlocks);
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       },
       isDestructive: true
@@ -290,6 +392,10 @@ const App: React.FC = () => {
         onSave={openSaveModal}
         onExport={exportOp}
         onClear={clearWorkspace}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={historyIndex > 0}
+        canRedo={historyIndex < history.length - 1}
       />
 
       <div className="flex-1 flex overflow-hidden">

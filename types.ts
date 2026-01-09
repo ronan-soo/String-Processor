@@ -6,7 +6,11 @@ export enum BlockType {
   PARSE_JSON = 'PARSE_JSON',
   SELECT_FIELD = 'SELECT_FIELD',
   SPLIT = 'SPLIT',
-  TRANSFORM_CASE = 'TRANSFORM_CASE'
+  TRANSFORM_UPPERCASE = 'TRANSFORM_UPPERCASE',
+  TRANSFORM_LOWERCASE = 'TRANSFORM_LOWERCASE',
+  JSON_STRINGIFY = 'JSON_STRINGIFY',
+  MINIFY = 'MINIFY',
+  PARSE_XML = 'PARSE_XML'
 }
 
 export type TransformResult = {
@@ -31,4 +35,9 @@ export interface SavedOperation extends PipelineState {
   id: string;
   name: string;
   createdAt: number;
+}
+
+export interface HistoryItem {
+  initialInput: string;
+  blocks: BlockInstance[];
 }

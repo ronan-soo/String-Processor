@@ -4,7 +4,11 @@ import { TransformResult } from '../types';
 export const getResultType = (val: any): TransformResult['type'] => {
   if (val === null) return 'null';
   if (Array.isArray(val)) return 'array';
-  return typeof val as TransformResult['type'];
+  const type = typeof val;
+  if (type === 'string' || type === 'object' || type === 'number' || type === 'boolean') {
+    return type as TransformResult['type'];
+  }
+  return 'null';
 };
 
 export const escapeText = (text: string, mode: 'html' | 'uri' = 'html'): string => {
@@ -22,7 +26,6 @@ export const unescapeText = (text: string, mode: 'html' | 'uri' = 'html'): strin
 
 export const selectField = (obj: any, path: string): any => {
   if (!obj) return undefined;
-  // Convert path a.b.c[0] to a.b.c.0
   const normalizedPath = path.replace(/\[(\w+)\]/g, '.$1').replace(/^\./, '');
   const keys = normalizedPath.split('.');
   
@@ -32,6 +35,102 @@ export const selectField = (obj: any, path: string): any => {
     current = current[key];
   }
   return current;
+};
+
+/**
+ * A robust XML formatter that beautifies an XML string.
+ * Refactored to handle multiline tags with closing symbols on new lines.
+ */
+const beautifyXml = (xmlString: string, indentSize: number = 4): string => {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+  
+  const parseError = xmlDoc.getElementsByTagName('parsererror');
+  if (parseError.length > 0) {
+    throw new Error('Invalid XML structure provided for parsing.');
+  }
+
+  const formatNode = (node: Node, level: number): string => {
+    const indent = ' '.repeat(level * indentSize);
+    let result = '';
+
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as Element;
+      result += `${indent}<${element.tagName}`;
+      
+      const attrs = Array.from(element.attributes);
+      const namespaces = attrs.filter(a => a.name.startsWith('xmlns'));
+      const others = attrs.filter(a => !a.name.startsWith('xmlns'));
+      
+      const isMultilineTag = namespaces.length > 1;
+
+      if (isMultilineTag) {
+        // Add standard attributes on the first line
+        others.forEach(attr => {
+          result += ` ${attr.name}="${attr.value}"`;
+        });
+        
+        // Add each namespace on its own line
+        const nsIndent = ' '.repeat((level + 1) * indentSize);
+        namespaces.forEach(ns => {
+          result += `\n${nsIndent}${ns.name}="${ns.value}"`;
+        });
+      } else {
+        // Single line attributes
+        attrs.forEach(attr => {
+          result += ` ${attr.name}="${attr.value}"`;
+        });
+      }
+
+      if (element.childNodes.length === 0) {
+        // Closing tag
+        if (isMultilineTag) {
+          result += `\n${indent}/>\n`;
+        } else {
+          result += '/>\n';
+        }
+      } else {
+        // Handle opening tag and children
+        if (isMultilineTag) {
+          result += `\n${indent}>`;
+        } else {
+          result += '>';
+        }
+
+        // Check if it's text-only content
+        const isTextOnly = Array.from(element.childNodes).every(n => n.nodeType === Node.TEXT_NODE);
+        const textContent = element.textContent?.trim();
+
+        if (isTextOnly && textContent && !isMultilineTag) {
+          // Simple one-liner for non-multiline tags with text
+          result += `${textContent}</${element.tagName}>\n`;
+        } else {
+          // Multiline content
+          result += '\n';
+          element.childNodes.forEach(child => {
+            const formatted = formatNode(child, level + 1);
+            if (formatted) result += formatted;
+          });
+          result += `${indent}</${element.tagName}>\n`;
+        }
+      }
+    } else if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent?.trim();
+      if (text) {
+        result += `${indent}${text}\n`;
+      }
+    } else if (node.nodeType === Node.COMMENT_NODE) {
+      result += `${indent}<!--${node.textContent}-->\n`;
+    } else if (node.nodeType === Node.DOCUMENT_NODE) {
+      node.childNodes.forEach(child => {
+        result += formatNode(child, level);
+      });
+    }
+
+    return result;
+  };
+
+  return formatNode(xmlDoc, 0).trim();
 };
 
 export const transform = (type: string, input: any, config: any): TransformResult => {
@@ -55,8 +154,30 @@ export const transform = (type: string, input: any, config: any): TransformResul
       case 'SPLIT':
         result = inputStr.split(config.separator || '');
         break;
-      case 'TRANSFORM_CASE':
-        result = config.mode === 'upper' ? inputStr.toUpperCase() : inputStr.toLowerCase();
+      case 'TRANSFORM_UPPERCASE':
+        result = inputStr.toUpperCase();
+        break;
+      case 'TRANSFORM_LOWERCASE':
+        result = inputStr.toLowerCase();
+        break;
+      case 'JSON_STRINGIFY':
+        const stringified = JSON.stringify(input);
+        result = stringified !== undefined ? stringified : String(input);
+        break;
+      case 'MINIFY':
+        if (typeof input === 'string') {
+          try {
+            const parsed = JSON.parse(input);
+            result = JSON.stringify(parsed);
+          } catch {
+            result = input.replace(/\s+/g, ' ').trim();
+          }
+        } else {
+          result = JSON.stringify(input);
+        }
+        break;
+      case 'PARSE_XML':
+        result = beautifyXml(inputStr, 4);
         break;
       default:
         result = input;

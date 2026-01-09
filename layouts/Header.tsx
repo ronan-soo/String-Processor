@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Zap, Save, Download, Trash2 } from 'lucide-react';
+import { Zap, Save, Download, Trash2, Undo2, Redo2 } from 'lucide-react';
 
 interface HeaderProps {
   activeOpName?: string;
@@ -7,9 +8,23 @@ interface HeaderProps {
   onSave: (forceNew?: boolean) => void;
   onExport: () => void;
   onClear: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeOpName, activeOpId, onSave, onExport, onClear }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  activeOpName, 
+  activeOpId, 
+  onSave, 
+  onExport, 
+  onClear,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo
+}) => {
   return (
     <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
       <div className="flex items-center gap-4">
@@ -29,7 +44,27 @@ const Header: React.FC<HeaderProps> = ({ activeOpName, activeOpId, onSave, onExp
         )}
       </div>
       
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
+        {/* Undo / Redo */}
+        <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100 mr-2">
+          <button 
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl+Z)"
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo (Ctrl+Shift+Z)"
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        </div>
+
         {activeOpId ? (
           <div className="flex bg-slate-100 p-1 rounded-xl">
             <button 
@@ -66,6 +101,7 @@ const Header: React.FC<HeaderProps> = ({ activeOpName, activeOpId, onSave, onExp
         
         <button 
           onClick={onClear}
+          title="Clear Workspace"
           className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
         >
           <Trash2 className="w-5 h-5" />

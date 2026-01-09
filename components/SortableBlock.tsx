@@ -11,7 +11,12 @@ import {
   Scissors, 
   ArrowRightLeft, 
   Hash,
-  AlertCircle
+  AlertCircle,
+  ArrowUp,
+  ArrowDown,
+  FileJson,
+  Minimize2,
+  FileCode
 } from 'lucide-react';
 import { BlockInstance, BlockType } from '../types';
 
@@ -47,9 +52,13 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       case BlockType.ESCAPE: return <Code className="w-4 h-4 text-emerald-500" />;
       case BlockType.UNESCAPE: return <ArrowRightLeft className="w-4 h-4 text-emerald-500" />;
       case BlockType.PARSE_JSON: return <Brackets className="w-4 h-4 text-indigo-500" />;
+      case BlockType.PARSE_XML: return <FileCode className="w-4 h-4 text-indigo-500" />;
+      case BlockType.JSON_STRINGIFY: return <FileJson className="w-4 h-4 text-indigo-500" />;
+      case BlockType.MINIFY: return <Minimize2 className="w-4 h-4 text-orange-500" />;
       case BlockType.SELECT_FIELD: return <Hash className="w-4 h-4 text-indigo-500" />;
       case BlockType.SPLIT: return <Scissors className="w-4 h-4 text-amber-500" />;
-      case BlockType.TRANSFORM_CASE: return <ArrowRightLeft className="w-4 h-4 text-slate-500" />;
+      case BlockType.TRANSFORM_UPPERCASE: return <ArrowUp className="w-4 h-4 text-slate-500" />;
+      case BlockType.TRANSFORM_LOWERCASE: return <ArrowDown className="w-4 h-4 text-slate-500" />;
       default: return <Settings className="w-4 h-4" />;
     }
   };
@@ -124,23 +133,33 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
             </div>
           )}
 
-          {block.type === BlockType.TRANSFORM_CASE && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">Target Case</label>
-              <select 
-                value={block.config.mode} 
-                onChange={(e) => onUpdateConfig({ ...block.config, mode: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-              >
-                <option value="upper">UPPERCASE</option>
-                <option value="lower">lowercase</option>
-              </select>
+          {block.type === BlockType.JSON_STRINGIFY && (
+            <div className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
+              Converts a JSON object or array back into a compact string format.
             </div>
           )}
           
+          {(block.type === BlockType.TRANSFORM_UPPERCASE || block.type === BlockType.TRANSFORM_LOWERCASE) && (
+             <div className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
+               Automatically transforms all incoming text to {block.type === BlockType.TRANSFORM_UPPERCASE ? 'UPPERCASE' : 'lowercase'}.
+             </div>
+          )}
+
           {block.type === BlockType.PARSE_JSON && (
             <div className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
               Parses the incoming string into a JSON object for further manipulation.
+            </div>
+          )}
+
+          {block.type === BlockType.PARSE_XML && (
+            <div className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
+              Beautifies the XML input string with a clean hierarchical structure and 4-space indentation.
+            </div>
+          )}
+
+          {block.type === BlockType.MINIFY && (
+            <div className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
+              Removes all unnecessary whitespace. Ideal for JSON or compact text transmission.
             </div>
           )}
         </div>
@@ -167,12 +186,12 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
             ) : (
               <div className="bg-slate-900 rounded-xl p-4 overflow-hidden relative">
                 <pre className="text-xs code-font text-slate-300 overflow-auto max-h-48 scrollbar-thin scrollbar-thumb-slate-700">
-                  {JSON.stringify(block.output.data, null, 2)}
+                  {typeof block.output.data === 'string' ? block.output.data : JSON.stringify(block.output.data, null, 2)}
                 </pre>
                 <div className="absolute top-2 right-2 opacity-0 group-hover/output:opacity-100 transition-opacity">
                   <button 
                     onClick={() => {
-                      navigator.clipboard.writeText(JSON.stringify(block.output.data, null, 2));
+                      navigator.clipboard.writeText(typeof block.output.data === 'string' ? block.output.data : JSON.stringify(block.output.data, null, 2));
                     }}
                     className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg shadow-xl"
                   >
