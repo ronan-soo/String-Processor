@@ -38,13 +38,13 @@ const Terminal: React.FC<TerminalProps> = ({ data, label }) => {
 
   return (
     <section 
-      className={`w-full transition-all duration-300 ease-in-out bg-slate-900 rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/10 ${
+      className={`w-full transition-all duration-300 ease-in-out bg-slate-900 rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/10 flex flex-col ${
         isExpanded 
           ? 'fixed inset-6 z-[200] max-w-none mb-0' 
           : 'max-w-4xl mb-16'
       }`}
     >
-      <div className="px-6 py-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
+      <div className="flex-none px-6 py-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] flex items-center gap-2">
             <Zap className="w-3.5 h-3.5 text-indigo-400" /> {label || 'Pipeline Terminal'}
@@ -75,7 +75,7 @@ const Terminal: React.FC<TerminalProps> = ({ data, label }) => {
       </div>
       
       <div className={`overflow-auto scrollbar-thin scrollbar-thumb-white/10 ${
-        isExpanded ? 'h-[calc(100vh-120px)]' : 'max-h-[600px]'
+        isExpanded ? 'flex-1' : 'max-h-[600px]'
       }`}>
         <pre className="p-8 code-font text-sm text-slate-300 whitespace-pre m-0">
           {displayContent}
@@ -83,7 +83,7 @@ const Terminal: React.FC<TerminalProps> = ({ data, label }) => {
       </div>
       
       {isExpanded && (
-        <div className="px-6 py-3 bg-indigo-600 flex justify-center">
+        <div className="flex-none px-6 py-3 bg-indigo-600 flex justify-center">
            <p className="text-[10px] text-white/80 font-medium uppercase tracking-[0.1em]">
              Press the collapse icon or ESC to exit focus mode
            </p>

@@ -275,7 +275,6 @@ const App: React.FC = () => {
       name,
       initialInput,
       blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config }) => ({ id, type, config })))),
-      // Fixed: Added missing createdAt property
       createdAt: Date.now()
     };
 
@@ -347,7 +346,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Fixed: Ensure component returns JSX.Element (fixing React.FC assignment error)
   return (
     <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
       <Header 
@@ -377,7 +375,7 @@ const App: React.FC = () => {
           ref={mainRef}
           className="flex-1 overflow-y-auto p-8 relative flex flex-col items-center"
         >
-          <div className="w-full max-w-4xl space-y-8">
+          <div className="w-full max-w-4xl space-y-8 pb-10">
             {/* Input Section */}
             <section className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden group focus-within:border-indigo-300 transition-colors">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
@@ -446,14 +444,16 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Scroll to Top */}
+          {/* Scroll to Top - Now Sticky and positioned in the container */}
           {showScrollTop && (
-            <button 
-              onClick={scrollToTop}
-              className="fixed bottom-10 left-1/2 -translate-x-1/2 p-4 bg-white border border-slate-200 text-slate-600 rounded-full shadow-xl hover:text-indigo-600 hover:border-indigo-100 hover:-translate-y-1 transition-all z-40"
-            >
-              <ArrowUp className="w-5 h-5" />
-            </button>
+            <div className="sticky bottom-10 z-40 w-full flex justify-center h-0 overflow-visible pointer-events-none">
+              <button 
+                onClick={scrollToTop}
+                className="pointer-events-auto p-4 bg-white border border-slate-200 text-slate-600 rounded-full shadow-2xl hover:text-indigo-600 hover:border-indigo-100 hover:-translate-y-1 transition-all"
+              >
+                <ArrowUp className="w-5 h-5" />
+              </button>
+            </div>
           )}
         </main>
       </div>
@@ -478,5 +478,4 @@ const App: React.FC = () => {
   );
 };
 
-// Fixed: Ensure default export
 export default App;
