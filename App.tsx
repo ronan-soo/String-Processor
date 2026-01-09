@@ -268,7 +268,7 @@ const App: React.FC = () => {
   };
 
   const performSave = (name: string, idToUpdate: string | null = null) => {
-    const finalId = idToUpdate || Math.random().toString(36).substr(2, 9);
+    const finalId = idToUpdate || Math.random().toString(36).substring(2, 9);
     
     const newOp: SavedOperation = {
       id: finalId,
