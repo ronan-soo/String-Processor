@@ -18,7 +18,8 @@ import {
 import { 
   Plus, 
   Hash,
-  CheckCircle2
+  CheckCircle2,
+  ArrowUp
 } from 'lucide-react';
 import { BlockType, BlockInstance, SavedOperation, HistoryItem } from './types';
 import { transform } from './utils/transformers';
@@ -38,7 +39,10 @@ const App: React.FC = () => {
   const [activeOpId, setActiveOpId] = useState<string | null>(null);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   
+  const mainRef = useRef<HTMLElement>(null);
+
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -61,6 +65,23 @@ const App: React.FC = () => {
     message: '',
     onConfirm: () => {},
   });
+
+  // Scroll detection
+  useEffect(() => {
+    const container = mainRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      setShowScrollTop(container.scrollTop > 300);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [mainRef.current]);
+
+  const scrollToTop = () => {
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const recordHistory = useCallback((input: string, currentBlocks: BlockInstance[]) => {
     if (isUndoingRedoing.current) {
@@ -352,6 +373,17 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Floating Scroll to Top Button */}
+      <button 
+        onClick={scrollToTop}
+        className={`fixed bottom-8 right-8 z-[100] w-14 h-14 bg-indigo-600 text-white rounded-2xl shadow-2xl shadow-indigo-200 flex items-center justify-center hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all duration-500 ease-in-out group ${
+          showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'
+        }`}
+        aria-label="Scroll to top"
+      >
+        <ArrowUp className="w-6 h-6 group-hover:scale-110 transition-transform" />
+      </button>
+
       <ConfirmationModal 
         isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message} 
         onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
@@ -369,7 +401,7 @@ const App: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         <Sidebar onAddBlock={addBlock} savedOps={savedOps} activeOpId={activeOpId} onLoadOp={loadOp} onDeleteOp={deleteOp} isCollapsed={isSidebarCollapsed} onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
 
-        <main className="flex-1 overflow-y-auto p-8 flex flex-col items-center gap-8 bg-slate-50/50 transition-all duration-300">
+        <main ref={mainRef} className="flex-1 overflow-y-auto p-8 flex flex-col items-center gap-8 bg-slate-50/50 transition-all duration-300 scroll-smooth">
           <section className="w-full max-w-4xl bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all hover:shadow-2xl">
             <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
