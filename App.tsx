@@ -68,23 +68,26 @@ const App: React.FC = () => {
       return;
     }
 
-    const snap: HistoryItem = { 
-      initialInput: input, 
-      blocks: JSON.parse(JSON.stringify(currentBlocks.map(({ id, type, config }) => ({ id, type, config })))) 
-    };
+    const snapBlocks = currentBlocks.map(({ id, type, config, isIsolated, isPinned }) => ({ id, type, config, isIsolated, isPinned }));
     
     setHistory(prev => {
       const newHistory = prev.slice(0, historyIndex + 1);
-      // Only record if it's actually different from the last state
+      
       if (newHistory.length > 0) {
         const last = newHistory[newHistory.length - 1];
-        if (last.initialInput === input && JSON.stringify(last.blocks) === JSON.stringify(snap.blocks)) {
+        if (last.initialInput === input && JSON.stringify(last.blocks) === JSON.stringify(snapBlocks)) {
           return prev;
         }
       }
-      return [...newHistory, snap];
+      
+      const snap: HistoryItem = { 
+        initialInput: input, 
+        blocks: JSON.parse(JSON.stringify(snapBlocks)) 
+      };
+      const updated = [...newHistory, snap];
+      setHistoryIndex(updated.length - 1);
+      return updated;
     });
-    setHistoryIndex(prev => prev + 1);
   }, [historyIndex]);
 
   const undo = useCallback(() => {
@@ -120,11 +123,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-        if (e.shiftKey) {
-          redo();
-        } else {
-          undo();
-        }
+        if (e.shiftKey) redo(); else undo();
         e.preventDefault();
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
         redo();
@@ -160,7 +159,8 @@ const App: React.FC = () => {
     
     const newBlocks = currentBlocks.map(b => {
       const block = { ...b };
-      const newOutput = transform(block.type, currentInput, block.config);
+      const inputToUse = block.isIsolated ? startInput : currentInput;
+      const newOutput = transform(block.type, inputToUse, block.config);
 
       if (JSON.stringify(newOutput) !== JSON.stringify(block.output)) {
         block.output = newOutput;
@@ -176,16 +176,15 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const blockDefinitionsJson = JSON.stringify(blocks.map(b => ({ id: b.id, type: b.type, config: b.config })));
+  const blockDepsJson = JSON.stringify(blocks.map(b => ({ id: b.id, type: b.type, config: b.config, isIsolated: b.isIsolated })));
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       runPipeline(initialInput, blocks);
     }, 150);
     return () => clearTimeout(timeout);
-  }, [initialInput, blockDefinitionsJson, runPipeline]);
+  }, [initialInput, blockDepsJson, runPipeline]);
 
-  // Handle recording history for initialInput with a separate debounce
   const inputTimeoutRef = useRef<number | null>(null);
   useEffect(() => {
     if (inputTimeoutRef.current) window.clearTimeout(inputTimeoutRef.current);
@@ -221,7 +220,9 @@ const App: React.FC = () => {
       id: newId,
       type,
       config: defaultConfig,
-      output: { data: null, type: 'null' }
+      output: { data: null, type: 'null' },
+      isIsolated: false,
+      isPinned: false
     };
 
     const newBlocks = [...blocks, newBlock];
@@ -235,10 +236,18 @@ const App: React.FC = () => {
     recordHistory(initialInput, newBlocks);
   };
 
-  const updateBlockConfig = (id: string, config: any) => {
-    const newBlocks = blocks.map(b => b.id === id ? { ...b, config } : b);
+  const updateBlock = (id: string, updates: Partial<BlockInstance>) => {
+    const newBlocks = blocks.map(b => {
+      if (b.id === id) {
+        return { ...b, ...updates };
+      }
+      // If we are pinning a block, we must unpin all others
+      if (updates.isPinned) {
+        return { ...b, isPinned: false };
+      }
+      return b;
+    });
     setBlocks(newBlocks);
-    // Debounce config recording slightly or record immediately? Immediate for toggles/dropdowns is usually better.
     recordHistory(initialInput, newBlocks);
   };
 
@@ -259,21 +268,13 @@ const App: React.FC = () => {
       id: finalId,
       name,
       initialInput,
-      blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config }) => ({ 
-        id, 
-        type, 
-        config, 
-        output: { data: null, type: 'null' as const } 
+      blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config, isIsolated, isPinned }) => ({ 
+        id, type, config, isIsolated, isPinned, output: { data: null, type: 'null' as const } 
       })))),
       createdAt: Date.now()
     };
 
-    let updated: SavedOperation[];
-    if (savedOps.some(op => op.id === finalId)) {
-      updated = savedOps.map(op => op.id === finalId ? newOp : op);
-    } else {
-      updated = [newOp, ...savedOps];
-    }
+    let updated = savedOps.some(op => op.id === finalId) ? savedOps.map(op => op.id === finalId ? newOp : op) : [newOp, ...savedOps];
 
     setSavedOps(updated);
     setActiveOpId(finalId);
@@ -298,12 +299,10 @@ const App: React.FC = () => {
       setConfirmModal({
         isOpen: true,
         title: 'Overwrite Pipeline?',
-        message: 'Loading this operation will replace all blocks in your current workspace. This cannot be undone.',
+        message: 'Loading this operation will replace all blocks in your current workspace.',
         onConfirm: () => executeLoadOp(op),
       });
-    } else {
-      executeLoadOp(op);
-    }
+    } else executeLoadOp(op);
   };
 
   const executeDeleteOp = (id: string) => {
@@ -319,7 +318,7 @@ const App: React.FC = () => {
     setConfirmModal({
       isOpen: true,
       title: 'Delete Operation?',
-      message: 'Are you sure you want to permanently remove this saved operation from your library?',
+      message: 'Are you sure you want to permanently remove this saved operation?',
       onConfirm: () => executeDeleteOp(id),
       isDestructive: true
     });
@@ -329,7 +328,7 @@ const App: React.FC = () => {
     setConfirmModal({
       isOpen: true,
       title: 'Clear Workspace?',
-      message: 'This will remove all blocks from your current pipeline. Saved operations will not be affected.',
+      message: 'This will remove all blocks from your current pipeline.',
       onConfirm: () => {
         const emptyBlocks: BlockInstance[] = [];
         setBlocks(emptyBlocks);
@@ -345,7 +344,7 @@ const App: React.FC = () => {
     const data = {
       name: savedOps.find(o => o.id === activeOpId)?.name || 'exported-flow',
       initialInput,
-      blocks: blocks.map(b => ({ type: b.type, config: b.config }))
+      blocks: blocks.map(b => ({ type: b.type, config: b.config, isIsolated: b.isIsolated }))
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -357,10 +356,16 @@ const App: React.FC = () => {
   };
 
   const activeOpName = savedOps.find(o => o.id === activeOpId)?.name;
+  
+  // Terminal Selection logic
+  const pinnedBlock = blocks.find(b => b.isPinned);
+  const terminalData = pinnedBlock ? pinnedBlock.output.data : blocks[blocks.length - 1]?.output?.data;
+  const terminalLabel = pinnedBlock 
+    ? `Stage Preview: ${pinnedBlock.type.replace('_', ' ')}` 
+    : 'Pipeline Terminal (Final Output)';
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      {/* Toast Notification */}
       {showSavedToast && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" />
@@ -368,46 +373,22 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Modals */}
       <ConfirmationModal 
-        isOpen={confirmModal.isOpen}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        onConfirm={confirmModal.onConfirm}
-        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message} 
+        onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
         isDestructive={confirmModal.isDestructive}
       />
 
-      <SaveModal 
-        isOpen={isSaveModalOpen}
-        tempName={tempName}
-        setTempName={setTempName}
-        onSave={performSave}
-        onClose={() => setIsSaveModalOpen(false)}
-      />
+      <SaveModal isOpen={isSaveModalOpen} tempName={tempName} setTempName={setTempName} onSave={performSave} onClose={() => setIsSaveModalOpen(false)} />
 
       <Header 
-        activeOpName={activeOpName}
-        activeOpId={activeOpId}
-        onSave={openSaveModal}
-        onExport={exportOp}
-        onClear={clearWorkspace}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={historyIndex > 0}
-        canRedo={historyIndex < history.length - 1}
+        activeOpName={activeOpName} activeOpId={activeOpId} onSave={openSaveModal} onExport={exportOp} 
+        onClear={clearWorkspace} onUndo={undo} onRedo={redo} 
+        canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1} 
       />
 
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar 
-          onAddBlock={addBlock}
-          savedOps={savedOps}
-          activeOpId={activeOpId}
-          onLoadOp={loadOp}
-          onDeleteOp={deleteOp}
-          isCollapsed={isSidebarCollapsed}
-          onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        />
+        <Sidebar onAddBlock={addBlock} savedOps={savedOps} activeOpId={activeOpId} onLoadOp={loadOp} onDeleteOp={deleteOp} isCollapsed={isSidebarCollapsed} onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
 
         <main className="flex-1 overflow-y-auto p-8 flex flex-col items-center gap-8 bg-slate-50/50 transition-all duration-300">
           <section className="w-full max-w-4xl bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all hover:shadow-2xl">
@@ -427,22 +408,18 @@ const App: React.FC = () => {
           {blocks.length > 0 && <div className="h-10 w-1 bg-indigo-100 rounded-full" />}
 
           <div className="w-full max-w-4xl flex flex-col items-center gap-8">
-            <DndContext 
-              sensors={sensors} 
-              collisionDetection={closestCenter} 
-              onDragEnd={handleDragEnd}
-            >
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
                 {blocks.map((block, index) => (
                   <React.Fragment key={block.id}>
                     <SortableBlock 
                       block={block} 
                       onRemove={() => removeBlock(block.id)}
-                      onUpdateConfig={(config) => updateBlockConfig(block.id, config)}
+                      onUpdateConfig={(config) => updateBlock(block.id, { config })}
+                      onToggleIsolated={() => updateBlock(block.id, { isIsolated: !block.isIsolated })}
+                      onTogglePinned={() => updateBlock(block.id, { isPinned: !block.isPinned })}
                     />
-                    {index < blocks.length - 1 && (
-                      <div className="h-10 w-1 bg-indigo-100 rounded-full" />
-                    )}
+                    {index < blocks.length - 1 && <div className="h-10 w-1 bg-indigo-100 rounded-full" />}
                   </React.Fragment>
                 ))}
               </SortableContext>
@@ -452,7 +429,7 @@ const App: React.FC = () => {
           {blocks.length > 0 && (
             <>
               <div className="h-10 w-1 bg-indigo-100 rounded-full" />
-              <Terminal data={blocks[blocks.length - 1]?.output?.data} />
+              <Terminal data={terminalData} label={terminalLabel} />
             </>
           )}
 

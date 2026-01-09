@@ -16,7 +16,9 @@ import {
   ArrowDown,
   FileJson,
   Minimize2,
-  FileCode
+  FileCode,
+  Eye,
+  ZapOff
 } from 'lucide-react';
 import { BlockInstance, BlockType } from '../types';
 
@@ -24,12 +26,16 @@ interface SortableBlockProps {
   block: BlockInstance;
   onRemove: () => void;
   onUpdateConfig: (config: any) => void;
+  onToggleIsolated: () => void;
+  onTogglePinned: () => void;
 }
 
 const SortableBlock: React.FC<SortableBlockProps> = ({ 
   block, 
   onRemove, 
-  onUpdateConfig
+  onUpdateConfig,
+  onToggleIsolated,
+  onTogglePinned
 }) => {
   const {
     attributes,
@@ -71,9 +77,13 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     <div 
       ref={setNodeRef} 
       style={style} 
-      className="w-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group hover:border-indigo-300 transition-colors"
+      className={`w-full bg-white rounded-2xl shadow-sm border overflow-hidden group transition-all duration-300 ${
+        block.isPinned ? 'border-indigo-500 ring-2 ring-indigo-50 shadow-lg' : 'border-slate-200 hover:border-indigo-300'
+      }`}
     >
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+      <div className={`px-5 py-3 border-b flex items-center justify-between transition-colors ${
+        block.isIsolated ? 'bg-amber-50/50 border-amber-100' : 'bg-slate-50/50 border-slate-100'
+      }`}>
         <div className="flex items-center gap-3">
           <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 text-slate-300 hover:text-slate-500 transition-colors">
             <GripVertical className="w-4 h-4" />
@@ -81,15 +91,51 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
           <div className="flex items-center gap-2">
             {getIcon()}
             <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{getLabel()}</span>
+            {block.isIsolated && (
+              <span className="text-[9px] font-black bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded ml-2 uppercase tracking-widest">Isolated</span>
+            )}
+            {block.isPinned && (
+              <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded ml-2 uppercase tracking-widest flex items-center gap-1">
+                <Eye className="w-2 h-2" /> Live
+              </span>
+            )}
           </div>
         </div>
-        <button onClick={onRemove} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-          <Trash2 className="w-4 h-4" />
-        </button>
+
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={onToggleIsolated}
+            title={block.isIsolated ? "Disable Isolated Mode" : "Isolated Mode: Use initial source input for this block"}
+            className={`p-1.5 rounded-lg transition-all ${
+              block.isIsolated 
+                ? 'text-amber-600 bg-amber-100 hover:bg-amber-200' 
+                : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'
+            }`}
+          >
+            <ZapOff className="w-4 h-4" />
+          </button>
+          
+          <button 
+            onClick={onTogglePinned}
+            title={block.isPinned ? "Unpin from Terminal" : "Pin output to Pipeline Terminal"}
+            className={`p-1.5 rounded-lg transition-all ${
+              block.isPinned 
+                ? 'text-indigo-600 bg-indigo-100 hover:bg-indigo-200' 
+                : 'text-slate-300 hover:text-indigo-500 hover:bg-indigo-50'
+            }`}
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          
+          <div className="w-px h-4 bg-slate-200 mx-1" />
+          
+          <button onClick={onRemove} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="p-5 flex flex-col md:flex-row gap-6">
-        {/* Config Panel */}
         <div className="w-full md:w-1/3 flex flex-col gap-4">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Configuration</div>
           
@@ -164,7 +210,6 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
           )}
         </div>
 
-        {/* Output Panel */}
         <div className="w-full md:w-2/3 flex flex-col gap-4 border-l border-slate-100 md:pl-6">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Output Stage Result</span>

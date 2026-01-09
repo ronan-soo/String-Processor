@@ -161,6 +161,8 @@ export const transform = (type: string, input: any, config: any): TransformResul
         result = inputStr.toLowerCase();
         break;
       case 'JSON_STRINGIFY':
+        // Ensure the result of JSON_STRINGIFY is always a string.
+        // Removed 2-space indentation to output a compact string.
         const stringified = JSON.stringify(input);
         result = stringified !== undefined ? stringified : String(input);
         break;

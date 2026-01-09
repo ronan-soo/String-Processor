@@ -4,9 +4,10 @@ import { Zap, Maximize2, Minimize2, Copy } from 'lucide-react';
 
 interface TerminalProps {
   data: any;
+  label?: string;
 }
 
-const Terminal: React.FC<TerminalProps> = ({ data }) => {
+const Terminal: React.FC<TerminalProps> = ({ data, label }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
@@ -33,7 +34,6 @@ const Terminal: React.FC<TerminalProps> = ({ data }) => {
     setIsExpanded(!isExpanded);
   };
 
-  // Align with block output logic: raw if string, stringified if object/array
   const displayContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
 
   return (
@@ -47,7 +47,7 @@ const Terminal: React.FC<TerminalProps> = ({ data }) => {
       <div className="px-6 py-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-indigo-400" /> Pipeline Terminal
+            <Zap className="w-3.5 h-3.5 text-indigo-400" /> {label || 'Pipeline Terminal'}
           </span>
           {isExpanded && (
             <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[9px] font-bold uppercase tracking-widest">

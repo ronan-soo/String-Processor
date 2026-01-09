@@ -24,6 +24,8 @@ export interface BlockInstance {
   type: BlockType;
   config: any;
   output: TransformResult;
+  isIsolated?: boolean;
+  isPinned?: boolean;
 }
 
 export interface PipelineState {
