@@ -66,7 +66,7 @@ const App: React.FC = () => {
     onConfirm: () => {},
   });
 
-  // Scroll detection
+  // Scroll detection logic on the pipeline container
   useEffect(() => {
     const container = mainRef.current;
     if (!container) return;
@@ -274,187 +274,209 @@ const App: React.FC = () => {
       id: finalId,
       name,
       initialInput,
-      blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config }) => ({ 
-        id, type, config, output: { data: null, type: 'null' as const } 
-      })))),
+      blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config }) => ({ id, type, config })))),
+      // Fixed: Added missing createdAt property
       createdAt: Date.now()
     };
 
-    let updated = savedOps.some(op => op.id === finalId) ? savedOps.map(op => op.id === finalId ? newOp : op) : [newOp, ...savedOps];
+    let updatedOps: SavedOperation[];
+    if (idToUpdate) {
+      updatedOps = savedOps.map(o => o.id === idToUpdate ? newOp : o);
+    } else {
+      updatedOps = [newOp, ...savedOps];
+    }
 
-    setSavedOps(updated);
+    setSavedOps(updatedOps);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedOps));
     setActiveOpId(finalId);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-    
     setIsSaveModalOpen(false);
     setShowSavedToast(true);
-    setTimeout(() => setShowSavedToast(false), 2000);
-  };
-
-  const executeLoadOp = (op: SavedOperation) => {
-    const clonedBlocks = JSON.parse(JSON.stringify(op.blocks));
-    setInitialInput(op.initialInput);
-    setBlocks(clonedBlocks);
-    setActiveOpId(op.id);
-    recordHistory(op.initialInput, clonedBlocks);
-    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    setTimeout(() => setShowSavedToast(false), 3000);
   };
 
   const loadOp = (op: SavedOperation) => {
-    if (blocks.length > 0) {
-      setConfirmModal({
-        isOpen: true,
-        title: 'Overwrite Pipeline?',
-        message: 'Loading this operation will replace all blocks in your current workspace.',
-        onConfirm: () => executeLoadOp(op),
-      });
-    } else executeLoadOp(op);
-  };
-
-  const executeDeleteOp = (id: string) => {
-    const updated = savedOps.filter(op => op.id !== id);
-    setSavedOps(updated);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-    if (activeOpId === id) setActiveOpId(null);
-    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    setInitialInput(op.initialInput);
+    setBlocks(op.blocks.map(b => ({ ...b, output: { data: null, type: 'null' } })));
+    setActiveOpId(op.id);
+    recordHistory(op.initialInput, op.blocks);
   };
 
   const deleteOp = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setConfirmModal({
       isOpen: true,
-      title: 'Delete Operation?',
-      message: 'Are you sure you want to permanently remove this saved operation?',
-      onConfirm: () => executeDeleteOp(id),
-      isDestructive: true
+      title: 'Delete Workflow?',
+      message: 'This will permanently remove this saved operation. This action cannot be undone.',
+      isDestructive: true,
+      onConfirm: () => {
+        const updated = savedOps.filter(o => o.id !== id);
+        setSavedOps(updated);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        if (activeOpId === id) setActiveOpId(null);
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
     });
+  };
+
+  const exportPipeline = () => {
+    const data = {
+      initialInput,
+      blocks: blocks.map(({ type, config }) => ({ type, config })),
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `textflow-pipeline-${new Date().getTime()}.json`;
+    a.click();
   };
 
   const clearWorkspace = () => {
     setConfirmModal({
       isOpen: true,
       title: 'Clear Workspace?',
-      message: 'This will remove all blocks from your current pipeline.',
+      message: 'This will remove all blocks and reset the input. You will lose any unsaved changes.',
+      isDestructive: true,
       onConfirm: () => {
-        const emptyBlocks: BlockInstance[] = [];
-        setBlocks(emptyBlocks);
+        setBlocks([]);
         setActiveOpId(null);
-        recordHistory(initialInput, emptyBlocks);
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
-      },
-      isDestructive: true
+        recordHistory(initialInput, []);
+      }
     });
   };
 
-  const exportOp = () => {
-    const data = {
-      name: savedOps.find(o => o.id === activeOpId)?.name || 'exported-flow',
-      initialInput,
-      blocks: blocks.map(b => ({ type: b.type, config: b.config }))
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${data.name.toLowerCase().replace(/\s+/g, '-')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const activeOpName = savedOps.find(o => o.id === activeOpId)?.name;
-  const terminalData = blocks[blocks.length - 1]?.output?.data;
-
+  // Fixed: Ensure component returns JSX.Element (fixing React.FC assignment error)
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      {showSavedToast && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          <span className="text-sm font-semibold tracking-wide">Operation Saved Successfully!</span>
-        </div>
-      )}
-
-      {/* Floating Scroll to Top Button */}
-      <button 
-        onClick={scrollToTop}
-        className={`fixed bottom-8 right-8 z-[100] w-14 h-14 bg-indigo-600 text-white rounded-2xl shadow-2xl shadow-indigo-200 flex items-center justify-center hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all duration-500 ease-in-out group ${
-          showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'
-        }`}
-        aria-label="Scroll to top"
-      >
-        <ArrowUp className="w-6 h-6 group-hover:scale-110 transition-transform" />
-      </button>
-
-      <ConfirmationModal 
-        isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message} 
-        onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
-        isDestructive={confirmModal.isDestructive}
-      />
-
-      <SaveModal isOpen={isSaveModalOpen} tempName={tempName} setTempName={setTempName} onSave={performSave} onClose={() => setIsSaveModalOpen(false)} />
-
+    <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
       <Header 
-        activeOpName={activeOpName} activeOpId={activeOpId} onSave={openSaveModal} onExport={exportOp} 
-        onClear={clearWorkspace} onUndo={undo} onRedo={redo} 
-        canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1} 
+        activeOpName={savedOps.find(o => o.id === activeOpId)?.name}
+        activeOpId={activeOpId}
+        onSave={openSaveModal}
+        onExport={exportPipeline}
+        onClear={clearWorkspace}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={historyIndex > 0}
+        canRedo={historyIndex < history.length - 1}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar onAddBlock={addBlock} savedOps={savedOps} activeOpId={activeOpId} onLoadOp={loadOp} onDeleteOp={deleteOp} isCollapsed={isSidebarCollapsed} onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar 
+          onAddBlock={addBlock}
+          savedOps={savedOps}
+          activeOpId={activeOpId}
+          onLoadOp={loadOp}
+          onDeleteOp={deleteOp}
+          isCollapsed={isSidebarCollapsed}
+          onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        />
 
-        <main ref={mainRef} className="flex-1 overflow-y-auto p-8 flex flex-col items-center gap-8 bg-slate-50/50 transition-all duration-300 scroll-smooth">
-          <section className="w-full max-w-4xl bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all hover:shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                <Hash className="w-3.5 h-3.5" /> Input Data Source
-              </span>
-            </div>
-            <textarea
-              value={initialInput}
-              onChange={(e) => setInitialInput(e.target.value)}
-              className="w-full h-40 p-6 code-font text-sm text-slate-700 focus:outline-none resize-none bg-white placeholder:text-slate-300"
-              placeholder="Paste your source text here..."
-            />
-          </section>
+        <main 
+          ref={mainRef}
+          className="flex-1 overflow-y-auto p-8 relative flex flex-col items-center"
+        >
+          <div className="w-full max-w-4xl space-y-8">
+            {/* Input Section */}
+            <section className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden group focus-within:border-indigo-300 transition-colors">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-100 rounded-lg">
+                    <Hash className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">Source Input</span>
+                </div>
+              </div>
+              <textarea 
+                value={initialInput}
+                onChange={(e) => setInitialInput(e.target.value)}
+                className="w-full h-48 p-6 text-sm code-font bg-transparent outline-none resize-none scrollbar-thin scrollbar-thumb-slate-200"
+                placeholder="Paste your source text, JSON, or XML here..."
+              />
+            </section>
 
-          {blocks.length > 0 && <div className="h-10 w-1 bg-indigo-100 rounded-full" />}
-
-          <div className="w-full max-w-4xl flex flex-col items-center gap-8">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                {blocks.map((block, index) => (
-                  <React.Fragment key={block.id}>
+            {/* Pipeline Section */}
+            <div className="space-y-4">
+              <DndContext 
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext 
+                  items={blocks.map(b => b.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {blocks.map((block) => (
                     <SortableBlock 
+                      key={block.id} 
                       block={block} 
                       onRemove={() => removeBlock(block.id)}
                       onUpdateConfig={(config) => updateBlockConfig(block.id, config)}
                     />
-                    {index < blocks.length - 1 && <div className="h-10 w-1 bg-indigo-100 rounded-full" />}
-                  </React.Fragment>
-                ))}
-              </SortableContext>
-            </DndContext>
+                  ))}
+                </SortableContext>
+              </DndContext>
+
+              {blocks.length === 0 && (
+                <div className="py-20 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-[2.5rem] bg-white/50">
+                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 text-slate-300">
+                    <Plus className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-slate-900 font-bold mb-1">Pipeline is empty</h3>
+                  <p className="text-sm text-slate-400">Add a block from the sidebar to start transforming</p>
+                </div>
+              )}
+            </div>
+
+            {/* Final Output */}
+            <div className="pt-8 border-t border-slate-200 flex flex-col items-center">
+               <Terminal 
+                data={blocks.length > 0 ? blocks[blocks.length - 1].output.data : initialInput} 
+                label="Final Pipeline Output"
+               />
+            </div>
           </div>
 
-          {blocks.length > 0 && (
-            <>
-              <div className="h-10 w-1 bg-indigo-100 rounded-full" />
-              <Terminal data={terminalData} />
-            </>
+          {/* Toast / Status messages */}
+          {showSavedToast && (
+            <div className="fixed bottom-10 right-10 flex items-center gap-3 px-6 py-4 bg-slate-900 text-white rounded-2xl shadow-2xl animate-in fade-in slide-in-from-right-10">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <span className="text-sm font-bold">Operation saved successfully!</span>
+            </div>
           )}
 
-          {blocks.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-24 text-slate-300">
-              <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 ring-1 ring-slate-100">
-                <Plus className="w-8 h-8 opacity-20" />
-              </div>
-              <p className="text-xl font-bold text-slate-400">Pipeline Empty</p>
-              <p className="text-sm font-medium text-slate-400 mt-2">Add a processor block from the sidebar to begin.</p>
-            </div>
+          {/* Scroll to Top */}
+          {showScrollTop && (
+            <button 
+              onClick={scrollToTop}
+              className="fixed bottom-10 left-1/2 -translate-x-1/2 p-4 bg-white border border-slate-200 text-slate-600 rounded-full shadow-xl hover:text-indigo-600 hover:border-indigo-100 hover:-translate-y-1 transition-all z-40"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
           )}
         </main>
       </div>
+
+      <SaveModal 
+        isOpen={isSaveModalOpen}
+        tempName={tempName}
+        setTempName={setTempName}
+        onSave={(name) => performSave(name)}
+        onClose={() => setIsSaveModalOpen(false)}
+      />
+
+      <ConfirmationModal 
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDestructive={confirmModal.isDestructive}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };
 
+// Fixed: Ensure default export
 export default App;
