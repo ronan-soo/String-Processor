@@ -68,7 +68,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const snapBlocks = currentBlocks.map(({ id, type, config, isIsolated, isPinned }) => ({ id, type, config, isIsolated, isPinned }));
+    const snapBlocks = currentBlocks.map(({ id, type, config }) => ({ id, type, config }));
     
     setHistory(prev => {
       const newHistory = prev.slice(0, historyIndex + 1);
@@ -112,14 +112,12 @@ const App: React.FC = () => {
     }
   }, [history, historyIndex]);
 
-  // Initial history setup
   useEffect(() => {
     if (history.length === 0) {
       recordHistory(initialInput, blocks);
     }
   }, []);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
@@ -134,7 +132,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo]);
 
-  // Load saved ops from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
@@ -159,8 +156,7 @@ const App: React.FC = () => {
     
     const newBlocks = currentBlocks.map(b => {
       const block = { ...b };
-      const inputToUse = block.isIsolated ? startInput : currentInput;
-      const newOutput = transform(block.type, inputToUse, block.config);
+      const newOutput = transform(block.type, currentInput, block.config);
 
       if (JSON.stringify(newOutput) !== JSON.stringify(block.output)) {
         block.output = newOutput;
@@ -176,7 +172,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const blockDepsJson = JSON.stringify(blocks.map(b => ({ id: b.id, type: b.type, config: b.config, isIsolated: b.isIsolated })));
+  const blockDepsJson = JSON.stringify(blocks.map(b => ({ id: b.id, type: b.type, config: b.config })));
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -220,9 +216,7 @@ const App: React.FC = () => {
       id: newId,
       type,
       config: defaultConfig,
-      output: { data: null, type: 'null' },
-      isIsolated: false,
-      isPinned: false
+      output: { data: null, type: 'null' }
     };
 
     const newBlocks = [...blocks, newBlock];
@@ -236,17 +230,8 @@ const App: React.FC = () => {
     recordHistory(initialInput, newBlocks);
   };
 
-  const updateBlock = (id: string, updates: Partial<BlockInstance>) => {
-    const newBlocks = blocks.map(b => {
-      if (b.id === id) {
-        return { ...b, ...updates };
-      }
-      // If we are pinning a block, we must unpin all others
-      if (updates.isPinned) {
-        return { ...b, isPinned: false };
-      }
-      return b;
-    });
+  const updateBlockConfig = (id: string, config: any) => {
+    const newBlocks = blocks.map(b => b.id === id ? { ...b, config } : b);
     setBlocks(newBlocks);
     recordHistory(initialInput, newBlocks);
   };
@@ -268,8 +253,8 @@ const App: React.FC = () => {
       id: finalId,
       name,
       initialInput,
-      blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config, isIsolated, isPinned }) => ({ 
-        id, type, config, isIsolated, isPinned, output: { data: null, type: 'null' as const } 
+      blocks: JSON.parse(JSON.stringify(blocks.map(({ id, type, config }) => ({ 
+        id, type, config, output: { data: null, type: 'null' as const } 
       })))),
       createdAt: Date.now()
     };
@@ -344,7 +329,7 @@ const App: React.FC = () => {
     const data = {
       name: savedOps.find(o => o.id === activeOpId)?.name || 'exported-flow',
       initialInput,
-      blocks: blocks.map(b => ({ type: b.type, config: b.config, isIsolated: b.isIsolated }))
+      blocks: blocks.map(b => ({ type: b.type, config: b.config }))
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -356,13 +341,7 @@ const App: React.FC = () => {
   };
 
   const activeOpName = savedOps.find(o => o.id === activeOpId)?.name;
-  
-  // Terminal Selection logic
-  const pinnedBlock = blocks.find(b => b.isPinned);
-  const terminalData = pinnedBlock ? pinnedBlock.output.data : blocks[blocks.length - 1]?.output?.data;
-  const terminalLabel = pinnedBlock 
-    ? `Stage Preview: ${pinnedBlock.type.replace('_', ' ')}` 
-    : 'Pipeline Terminal (Final Output)';
+  const terminalData = blocks[blocks.length - 1]?.output?.data;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -415,9 +394,7 @@ const App: React.FC = () => {
                     <SortableBlock 
                       block={block} 
                       onRemove={() => removeBlock(block.id)}
-                      onUpdateConfig={(config) => updateBlock(block.id, { config })}
-                      onToggleIsolated={() => updateBlock(block.id, { isIsolated: !block.isIsolated })}
-                      onTogglePinned={() => updateBlock(block.id, { isPinned: !block.isPinned })}
+                      onUpdateConfig={(config) => updateBlockConfig(block.id, config)}
                     />
                     {index < blocks.length - 1 && <div className="h-10 w-1 bg-indigo-100 rounded-full" />}
                   </React.Fragment>
@@ -429,7 +406,7 @@ const App: React.FC = () => {
           {blocks.length > 0 && (
             <>
               <div className="h-10 w-1 bg-indigo-100 rounded-full" />
-              <Terminal data={terminalData} label={terminalLabel} />
+              <Terminal data={terminalData} />
             </>
           )}
 
