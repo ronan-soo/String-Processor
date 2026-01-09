@@ -444,12 +444,12 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Scroll to Top - Now Sticky and positioned in the container */}
+          {/* Scroll to Top - Enhanced layout to prevent distortion */}
           {showScrollTop && (
             <div className="sticky bottom-10 z-40 w-full flex justify-center h-0 overflow-visible pointer-events-none">
               <button 
                 onClick={scrollToTop}
-                className="pointer-events-auto p-4 bg-white border border-slate-200 text-slate-600 rounded-full shadow-2xl hover:text-indigo-600 hover:border-indigo-100 hover:-translate-y-1 transition-all"
+                className="pointer-events-auto w-12 h-12 flex-none flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full shadow-2xl hover:text-indigo-600 hover:border-indigo-100 hover:-translate-y-1 transition-all active:scale-95"
               >
                 <ArrowUp className="w-5 h-5" />
               </button>

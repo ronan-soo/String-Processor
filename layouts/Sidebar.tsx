@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   Code, 
@@ -41,16 +42,21 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   return (
     <aside className={`${isCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-slate-200 flex flex-col overflow-hidden transition-all duration-300 ease-in-out relative group/sidebar`}>
-      {/* Retract Toggle */}
-      <button 
-        onClick={onToggle}
-        className={`absolute top-4 ${isCollapsed ? 'left-1/2 -translate-x-1/2' : 'right-4'} p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all z-10`}
-        title={isCollapsed ? "Expand Sidebar" : "Retract Sidebar"}
-      >
-        {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-      </button>
+      {/* Sidebar Header with Toggle */}
+      <div className={`h-16 flex items-center border-b border-slate-50 flex-none px-4 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+        {!isCollapsed && (
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Menu</span>
+        )}
+        <button 
+          onClick={onToggle}
+          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+        </button>
+      </div>
 
-      <div className={`flex-1 overflow-y-auto ${isCollapsed ? 'p-4 pt-16' : 'p-6 pt-16'} flex flex-col gap-10 scrollbar-hide`}>
+      <div className={`flex-1 overflow-y-auto ${isCollapsed ? 'p-4' : 'p-6'} flex flex-col gap-10 scrollbar-hide`}>
         <div>
           {!isCollapsed && (
             <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Pipeline Blocks</h2>
